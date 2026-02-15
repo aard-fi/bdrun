@@ -1,0 +1,45 @@
+# Example command-specific config file
+# Place this file as ~/.config/bdrun/<command>.yaml or ~/.bdrun/<command>.yaml
+#
+# For example:
+#   ~/.config/bdrun/podman.yaml - Used when invoked as "podman"
+#   ~/.config/bdrun/ls.yaml     - Used when invoked as "ls"
+#
+# This allows different commands to use different sockets or settings.
+
+# Transport configuration
+transport:
+  type: socket
+  # Use a different socket for this specific command
+  address: ~/.bdrun/bdrun.sock
+  options: {}
+
+# Security settings (optional)
+security:
+  tls:
+    enabled: false
+  auth:
+    type: none
+
+# Callback settings (not used for socket transport)
+callback:
+  enabled: false
+
+# Logging configuration
+logging:
+  level: warn          # Commands usually quiet
+  format: text
+  output: stderr
+
+# Example use cases:
+#
+# 1. Different socket per command:
+#    ~/.config/bdrun/podman.yaml -> socket: ~/.bdrun/podman.sock
+#    ~/.config/bdrun/docker.yaml -> socket: ~/.bdrun/docker.sock
+#
+# 2. Production vs development:
+#    ~/.config/bdrun/podman.yaml -> socket: /var/run/bdrun-prod.sock
+#    ~/.config/bdrun/podman-dev.yaml -> socket: /var/run/bdrun-dev.sock
+#
+# 3. Different hosts:
+#    Later with relay support, different commands could connect to different hosts

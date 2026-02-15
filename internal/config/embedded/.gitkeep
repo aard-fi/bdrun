@@ -1,0 +1,2 @@
+# Embedded configuration files go here
+# These will be embedded into the binary at compile time

@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package bdrun.v1;
+
+option go_package = "github.com/aard-fi/bdrun/internal/protocol";
+
+// Message envelope for all communications
+message Message {
+  string connection_id = 1;      // Unique connection identifier
+  uint64 sequence = 2;           // Message sequence number
+  MessageType type = 3;          // Message type discriminator
+  bytes payload = 4;             // Type-specific payload
+  map<string, string> metadata = 5; // Extensible metadata
+}
+
+enum MessageType {
+  UNKNOWN = 0;
+  COMMAND_REQUEST = 1;
+  COMMAND_RESPONSE = 2;
+  STDOUT_DATA = 3;
+  STDERR_DATA = 4;
+  STDIN_DATA = 5;
+  PTY_RESIZE = 6;
+  EXIT_CODE = 7;
+  ERROR = 8;
+  HEARTBEAT = 9;
+  AUTH_REQUEST = 10;
+  AUTH_RESPONSE = 11;
+}
+
+// Command execution request
+message CommandRequest {
+  string command = 1;              // Binary name
+  repeated string args = 2;        // Arguments
+  map<string, string> env = 3;     // Environment variables
+  string working_dir = 4;          // Working directory
+  bool allocate_pty = 5;           // Request PTY allocation
+  TerminalSize pty_size = 6;       // Initial PTY size
+  bytes stdin_data = 7;            // Initial stdin data
+}
+
+// Command execution response
+message CommandResponse {
+  string exec_id = 1;              // Execution identifier
+  bool success = 2;                // Whether command started
+  string error_message = 3;        // Error if not successful
+}
+
+// Stream data (stdout/stderr/stdin)
+message StreamData {
+  string exec_id = 1;              // Execution identifier
+  StreamType stream = 2;           // Which stream
+  bytes data = 3;                  // Binary data
+  bool eof = 4;                    // End of stream marker
+}
+
+enum StreamType {
+  STREAM_UNKNOWN = 0;
+  STREAM_STDOUT = 1;
+  STREAM_STDERR = 2;
+  STREAM_STDIN = 3;
+}
+
+// Terminal size for PTY
+message TerminalSize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+  uint32 width_px = 3;
+  uint32 height_px = 4;
+}
+
+// PTY resize notification
+message PTYResize {
+  string exec_id = 1;
+  TerminalSize size = 2;
+}
+
+// Exit code notification
+message ExitCode {
+  string exec_id = 1;
+  int32 code = 2;
+}
+
+// Error message
+message Error {
+  string message = 1;
+  string code = 2;
+  map<string, string> details = 3;
+}
+
+// Authentication request
+message AuthRequest {
+  string auth_type = 1;            // e.g., "token", "mutual-tls"
+  bytes credentials = 2;           // Type-specific credentials
+  string client_id = 3;            // Optional client identifier
+}
+
+// Authentication response
+message AuthResponse {
+  bool authenticated = 1;
+  string connection_id = 2;        // Assigned connection ID
+  string error_message = 3;        // Error if not authenticated
+}

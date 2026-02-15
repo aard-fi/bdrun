@@ -1,0 +1,123 @@
+# bdrun daemon configuration example
+# This file configures the host-side daemon that executes commands
+
+# Transport configuration
+transport:
+  type: socket
+  # Socket path - supports variable expansion:
+  #   ~ expands to home directory
+  #   $HOME, $XDG_RUNTIME_DIR, etc. are expanded
+  # Default: ~/.bdrun/bdrun.sock (created automatically if directory exists)
+  # Root users may prefer: /var/run/bdrun.sock
+  address: ~/.bdrun/bdrun.sock
+  options:
+    # Socket file permissions (0600 = owner read/write only)
+    permissions: 0600
+
+# Command execution rules
+execution:
+  # Default working directory for commands
+  working_dir: /tmp
+
+  # Maximum execution timeout (0 = no timeout)
+  timeout: 5m
+
+  # Command allowlist with regex patterns
+  allowed_commands:
+    # Allow podman with specific subcommands
+    - command: podman
+      regex: false  # Exact match on command name
+      allowed_args:
+        - "^(run|ps|images|pull|exec|logs|stop|start|rm|rmi|inspect|version)$"  # Allowed subcommands
+        - ".*"  # Allow any other arguments after the subcommand
+      denied_args:
+        - "--privileged"  # Explicitly deny privileged mode
+        - "--cap-add"     # Deny capability additions
+        - "--security-opt"  # Deny security option changes
+      allow_pty: true
+
+    # Allow docker as well (if you use both)
+    - command: docker
+      regex: false
+      allowed_args:
+        - "^(run|ps|images|pull|exec|logs|stop|start|rm|rmi|inspect|version)$"
+        - ".*"
+      denied_args:
+        - "--privileged"
+        - "--cap-add"
+        - "--security-opt"
+      allow_pty: true
+
+    # Example: Allow any command (DANGEROUS - for testing only)
+    # - command: ".*"
+    #   regex: true
+    #   allowed_args: [".*"]
+    #   allow_pty: true
+
+  # Environment variables that can be passed through
+  # Only these variables from the client will be forwarded
+  allowed_env_vars:
+    - "PATH"
+    - "HOME"
+    - "USER"
+    - "TERM"
+    - "LANG"
+    - "LC_.*"  # Locale variables
+
+  # PTY (terminal) settings
+  pty:
+    enabled: true
+    term: xterm-256color
+    default_rows: 24
+    default_cols: 80
+
+# Security settings
+security:
+  # Socket permission checking
+  socket_permissions:
+    required_mode: 0600  # Must be 0600 or 0700
+    warn_only: false     # If true, warn but continue; if false, fail on insecure permissions
+
+  # TLS configuration (not used for Unix sockets)
+  tls:
+    enabled: false
+
+  # Authentication (not needed for local Unix socket)
+  auth:
+    type: none
+
+# Logging configuration
+logging:
+  level: info         # debug, info, warn, error
+  format: text        # text or json
+  output: stdout      # stdout, stderr, or file path
+
+# Hook commands (optional)
+# Run commands before/after socket creation
+hooks:
+  # Pre-start hooks run synchronously before the socket is created
+  # Use for setup tasks that must complete before the daemon starts
+  pre_start: []
+    # Example: Create directory structure
+    # - command: mkdir
+    #   args: ["-p", "/var/run/bdrun"]
+    #   description: "Create socket directory"
+
+  # Post-start hooks run asynchronously after the socket is created
+  # The daemon will monitor these processes and shut down if they exit
+  # Use for proxy processes like socat to expose the socket over network
+  post_start: []
+    # Example: Expose Unix socket via TCP using socat
+    # - command: socat
+    #   args:
+    #     - "TCP-LISTEN:12345,reuseaddr,fork"
+    #     - "UNIX-CONNECT:~/.bdrun/bdrun.sock"
+    #   description: "Expose socket on TCP port 12345"
+    #   env:
+    #     - "SOCAT_DEFAULT_LISTEN_IP=0.0.0.0"
+
+    # Example: Run a monitoring script
+    # - command: /usr/local/bin/monitor.sh
+    #   args: ["--socket", "~/.bdrun/bdrun.sock"]
+    #   working_dir: /var/log/bdrun
+    #   description: "Monitor daemon health"

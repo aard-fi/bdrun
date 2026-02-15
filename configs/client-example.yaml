@@ -1,0 +1,44 @@
+# bdrun client configuration example
+# This file configures the container-side client
+
+# Transport configuration
+transport:
+  type: socket
+  # Socket path - supports variable expansion:
+  #   ~ expands to home directory
+  #   $HOME, $XDG_RUNTIME_DIR, etc. are expanded
+  # Default: ~/.bdrun/bdrun.sock
+  address: ~/.bdrun/bdrun.sock
+  options: {}
+
+# Security settings (minimal for local socket)
+security:
+  tls:
+    enabled: false
+  auth:
+    type: none
+
+# Callback settings (not used for socket transport)
+callback:
+  enabled: false
+
+# Logging configuration
+logging:
+  level: warn          # Client is usually quiet
+  format: text
+  output: stderr
+
+# Hook commands (optional)
+# Client-side hooks run before connecting to the daemon
+hooks:
+  pre_start: []
+    # Example: Start socat to create socket proxy to remote host
+    # - command: socat
+    #   args:
+    #     - "UNIX-LISTEN:/Users/username/.bdrun/bdrun.sock,fork"
+    #     - "TCP-CONNECT:remote-host:12345"
+    #   description: "Create socket proxy to remote host"
+    #   creates_socket: true  # Only run if socket doesn't exist yet
+    #                        # This allows multiple clients to share the socket
+
+  post_start: []

@@ -1,0 +1,104 @@
+# bdrun daemon configuration with socat network proxy
+# This configuration demonstrates using post-start hooks to expose
+# the Unix socket over TCP using socat
+
+# Transport configuration
+transport:
+  type: socket
+  address: ~/.bdrun/bdrun.sock
+  options:
+    permissions: 0600
+
+# Command execution rules
+execution:
+  working_dir: /tmp
+  timeout: 5m
+
+  allowed_commands:
+    # Allow podman with safe subcommands
+    - command: podman
+      regex: false
+      allowed_args:
+        - "^(run|ps|images|pull|exec|logs|stop|start|rm|rmi|inspect|version)$"
+        - ".*"
+      denied_args:
+        - "--privileged"
+        - "--cap-add"
+        - "--security-opt"
+      allow_pty: true
+
+    # Allow echo for testing
+    - command: echo
+      regex: false
+      allowed_args: [".*"]
+      allow_pty: false
+
+  allowed_env_vars:
+    - "PATH"
+    - "HOME"
+    - "USER"
+    - "TERM"
+
+  pty:
+    enabled: true
+    term: xterm-256color
+    default_rows: 24
+    default_cols: 80
+
+# Security settings
+security:
+  socket_permissions:
+    required_mode: 0600
+    warn_only: false
+
+  tls:
+    enabled: false
+
+  auth:
+    type: none
+
+# Logging configuration
+logging:
+  level: info
+  format: text
+  output: stdout
+
+# Hook commands
+hooks:
+  # Pre-start: Create socket directory if it doesn't exist
+  pre_start:
+    - command: mkdir
+      args: ["-p", "~/.bdrun"]
+      description: "Create socket directory"
+
+  # Post-start: Expose socket on TCP port 12345 using socat
+  # The daemon will monitor this process and shut down if it exits
+  post_start:
+    - command: socat
+      args:
+        # Listen on TCP port 12345, allow address reuse, fork for each connection
+        - "TCP-LISTEN:12345,reuseaddr,fork"
+        # Connect to the Unix socket
+        - "UNIX-CONNECT:/Users/bwachter/.bdrun/bdrun.sock"
+      description: "Expose Unix socket on TCP port 12345"
+      env:
+        # Bind to all interfaces (default is localhost only)
+        - "SOCAT_DEFAULT_LISTEN_IP=0.0.0.0"
+
+# SECURITY WARNING:
+# This configuration exposes the Unix socket over TCP without authentication!
+# Anyone who can reach port 12345 can execute commands through bdrun.
+#
+# For production use, you should:
+# 1. Use firewall rules to restrict access to the TCP port
+# 2. Use SSH tunneling instead: ssh -L 12345:localhost:12345 user@host
+# 3. Wait for the relay server with proper authentication (Phase 3)
+# 4. Use TLS with client certificates if you must expose it directly
+#
+# Example with TLS (requires socat compiled with SSL support):
+# post_start:
+#   - command: socat
+#     args:
+#       - "OPENSSL-LISTEN:12345,reuseaddr,fork,cert=/path/to/server.pem,cafile=/path/to/ca.pem,verify=1"
+#       - "UNIX-CONNECT:~/.bdrun/bdrun.sock"
+#     description: "Expose Unix socket on TLS port 12345"

@@ -1,0 +1,60 @@
+* BDRun                                                               :TOC_4:
+- [[#introduction][Introduction]]
+- [[#building][Building]]
+- [[#configuration][Configuration]]
+
+* Introduction
+
+BDRun (BackDoor Run) is a command execution proxy system designed for container-to-host command execution and security research. This tool builds in two variants - =bdrun-socket= and =bdrun-research=.
+
+=bdrun-socket= aims to have a somewhat controllable code base for executing specific commands on a host from an environment that typically would not be able to do so (like a container).
+
+The research variant adds transports other than sockets as well as connection proxy and some logic to try to break out of (or into) controlled environments.
+
+#+BEGIN_EXAMPLE
+┌─────────────────┐                               ┌──────────────────┐
+│                 │◄──────────────────────────────┤                  │
+│  host daemon    │  Protobuf via UNIX socket     │  container       │
+│  (bdrun-socket) │                               │  client          │
+│                 ├──────────────────────────────►│  (bdrun-socket)  │
+└─────────────────┘                               └──────────────────┘
+        │                                                    │
+        │                                                    │
+    validates                                          captures
+    & executes                                         argv, stdin,
+    commands                                           terminal size
+#+END_EXAMPLE
+
+* Building
+
+This needs go and make to build. Use =make build= to build for the current OS and architecture, or =make build-all= to build for all supported architectures. Binaries will be named =bdrun-socket-<os>-arch>=.
+
+Alternatively binaries are also available from this repositories release page.
+
+* Configuration
+
+Some sample configuration files are in the =configs= directory - consult them for configuration options.
+
+In daemon mode, the following locations are searched for a configuration file:
+
+1. explicit config path specified with the =--config= flag
+2. =daemon.yaml= in the current directory
+3. =~/.bdrun/daemon.yaml=
+4. =$XDG_CONFIG_HOME/bdrun/daemon.yaml= with fallback to =~/.config/bdrun/daemon.yaml=
+5. =/etc/bdrun/daemon.yaml=
+6. built-in embedded config
+
+In client mode, the following locations are checked:
+
+1. check the =BDRUN_CLIENT_CONFIG= variable for a path
+2. =client.yaml= in the current directory
+3. =~/.bdrun/client.yaml=
+4. =$XDG_CONFIG_HOME/bdrun/client.yaml= with fallback to =~/.config/bdrun/client.yaml=
+5. =/etc/bdrun/client.yaml=
+6. built-in defaults:
+  - UNIX socket transport
+  - socket path =~/.bdrun/bdrun.sock=
+
+The client is a multi-call binary, i.e., you can do =ln -s bdrun-socket podman=, and then call it as =podman=. In that case it'll search for =podman.yaml= instead of =client.yaml=.
+
+For all variants the socket location can be specified via the =BDRUN_SOCKET= variable, which will override all other definitions.

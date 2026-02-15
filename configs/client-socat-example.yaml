@@ -1,0 +1,59 @@
+# Client config with socat proxy to remote host
+# This creates a local Unix socket that proxies to a remote TCP port
+
+transport:
+  type: socket
+  address: ~/.bdrun/bdrun.socket
+
+security:
+  tls:
+    enabled: false
+  auth:
+    type: none
+
+callback:
+  enabled: false
+
+logging:
+  level: warn
+  format: text
+  output: stderr
+
+hooks:
+  pre_start:
+    # Start socat to proxy local socket to remote TCP
+    - command: socat
+      args:
+        - "UNIX-LISTEN:~/.bdrun/bdrun.socket,fork"
+        - "TCP-CONNECT:edna-edison.lart.info:12345"
+      description: "Proxy socket to remote host"
+      creates_socket: true    # Only run if socket doesn't exist
+      cleanup_on_exit: false  # Don't kill socat when THIS client exits
+                              # Set to true for exclusive use
+
+  post_start: []
+
+# How this works:
+#
+# 1. First client runs:
+#    - Checks if ~/.bdrun/bdrun.socket exists
+#    - Doesn't exist, so runs the socat hook
+#    - Socat starts and creates the listening socket
+#    - Client waits for socket to appear (up to 10 seconds)
+#    - Socket appears, client connects
+#
+# 2. Second client runs (while first is still running):
+#    - Checks if ~/.bdrun/bdrun.socket exists
+#    - It exists! Skips the hook
+#    - Connects to existing socket
+#    - Both clients share the same socat proxy
+#
+# 3. When all clients disconnect:
+#    - Socat process keeps running (it's forked)
+#    - Next client will reuse the same socket
+#    - To stop socat: pkill socat or kill manually
+#
+# Note: The socat process runs in the background and continues
+# even after all clients disconnect. This is intentional for reuse.
+# If you want it to stop when the last client disconnects, you'd need
+# to track that separately (future enhancement).
