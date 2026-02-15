@@ -126,6 +126,7 @@ func findDaemonConfig() string {
 }
 
 // LoadDaemonConfig loads daemon configuration with fallback to embedded
+// Priority: explicit path > attached config > default locations > embedded
 func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 	v := viper.New()
 
@@ -136,6 +137,19 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
 	} else {
+		// Try attached config in executable
+		execPath, _ := os.Executable()
+		if execPath != "" {
+			daemonData, _, _, err := ReadAttachedConfig(execPath)
+			if err == nil && len(daemonData) > 0 {
+				v.SetConfigType("yaml")
+				if err := v.ReadConfig(bytes.NewReader(daemonData)); err != nil {
+					return nil, fmt.Errorf("failed to read attached config: %w", err)
+				}
+				goto unmarshal
+			}
+		}
+
 		// Try default locations
 		configPath := findDaemonConfig()
 		if configPath != "" {
@@ -157,6 +171,7 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 		}
 	}
 
+unmarshal:
 	var cfg DaemonConfig
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
@@ -209,6 +224,7 @@ func findClientConfig() string {
 }
 
 // LoadClientConfig loads client configuration
+// Priority: explicit path > attached config > default locations > embedded
 func LoadClientConfig(path string) (*ClientConfig, error) {
 	v := viper.New()
 
@@ -219,6 +235,19 @@ func LoadClientConfig(path string) (*ClientConfig, error) {
 			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
 	} else {
+		// Try attached config in executable
+		execPath, _ := os.Executable()
+		if execPath != "" {
+			_, clientData, _, err := ReadAttachedConfig(execPath)
+			if err == nil && len(clientData) > 0 {
+				v.SetConfigType("yaml")
+				if err := v.ReadConfig(bytes.NewReader(clientData)); err != nil {
+					return nil, fmt.Errorf("failed to read attached config: %w", err)
+				}
+				goto unmarshal
+			}
+		}
+
 		// Try default locations
 		configPath := findClientConfig()
 		if configPath != "" {
@@ -240,6 +269,7 @@ func LoadClientConfig(path string) (*ClientConfig, error) {
 		}
 	}
 
+unmarshal:
 	var cfg ClientConfig
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
@@ -292,6 +322,7 @@ func findRelayConfig() string {
 }
 
 // LoadRelayConfig loads relay configuration
+// Priority: explicit path > attached config > default locations > embedded
 func LoadRelayConfig(path string) (*RelayConfig, error) {
 	v := viper.New()
 
@@ -302,6 +333,19 @@ func LoadRelayConfig(path string) (*RelayConfig, error) {
 			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
 	} else {
+		// Try attached config in executable
+		execPath, _ := os.Executable()
+		if execPath != "" {
+			_, _, relayData, err := ReadAttachedConfig(execPath)
+			if err == nil && len(relayData) > 0 {
+				v.SetConfigType("yaml")
+				if err := v.ReadConfig(bytes.NewReader(relayData)); err != nil {
+					return nil, fmt.Errorf("failed to read attached config: %w", err)
+				}
+				goto unmarshal
+			}
+		}
+
 		// Try default locations
 		configPath := findRelayConfig()
 		if configPath != "" {
@@ -323,6 +367,7 @@ func LoadRelayConfig(path string) (*RelayConfig, error) {
 		}
 	}
 
+unmarshal:
 	var cfg RelayConfig
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)

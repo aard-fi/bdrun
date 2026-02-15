@@ -43,6 +43,8 @@ func main() {
 		runDaemon()
 	} else if len(os.Args) > 1 && os.Args[1] == "cleanup" {
 		runCleanup()
+	} else if len(os.Args) > 1 && os.Args[1] == "attach-config" {
+		runAttachConfig()
 	} else if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v") {
 		fmt.Printf("bdrun-socket\n")
 		fmt.Printf("  Version:    %s\n", version)
@@ -327,11 +329,12 @@ func printHelp() {
 	fmt.Printf(`bdrun-socket - Command execution proxy (socket transport only)
 
 Usage:
-  %s daemon [--config <path>]     Run as daemon
-  %s cleanup                      Clean up socket-creating hooks
-  %s <command> [args...]          Execute command via daemon
-  %s version                      Show version information
-  %s help                         Show this help message
+  %s daemon [--config <path>]            Run as daemon
+  %s cleanup                             Clean up socket-creating hooks
+  %s attach-config [options]             Attach config to binary
+  %s <command> [args...]                 Execute command via daemon
+  %s version                             Show version information
+  %s help                                Show this help message
 
 Daemon Mode:
   The daemon runs on the host and accepts connections via Unix socket.
@@ -366,6 +369,24 @@ Multi-Call Binary Mode:
     Create ~/.config/bdrun/<command>.yaml or ~/.bdrun/<command>.yaml
     to use different socket/settings for specific commands.
 
+Attach Config Mode:
+  Attach configuration files directly to the binary for distribution.
+  This creates a self-contained binary with embedded config.
+
+  Options:
+    -i, --input <path>     Input binary (default: current executable)
+    -o, --output <path>    Output binary path (required)
+    --daemon <path>        Daemon config file to attach
+    --client <path>        Client config file to attach
+    --relay <path>         Relay config file to attach
+    --info                 Show attached config info
+
+  Config priority at runtime:
+    1. Explicit --config flag
+    2. Attached config (embedded in binary)
+    3. Default config file locations
+    4. Built-in embedded config
+
 Examples:
   # Start daemon
   %s daemon --config /etc/bdrun/daemon.yaml
@@ -382,8 +403,12 @@ Examples:
   ln -s bdrun-socket podman
   ./podman ps              # Transparently proxies to host
 
+  # Attach configs to binary
+  %s attach-config --daemon daemon.yaml --client client.yaml -o bdrun-custom
+  %s attach-config --info  # Show what's attached to current binary
+
 Version: %s
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], version)
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], version)
 }
 
 func runCleanup() {
@@ -397,4 +422,117 @@ func runCleanup() {
 	}
 
 	fmt.Println("Cleanup complete.")
+}
+
+func runAttachConfig() {
+	// Parse attach-config flags
+	flags := pflag.NewFlagSet("attach-config", pflag.ExitOnError)
+	input := flags.StringP("input", "i", "", "Input binary (default: current executable)")
+	output := flags.StringP("output", "o", "", "Output binary path (required)")
+	daemonConfig := flags.String("daemon", "", "Daemon config file to attach")
+	clientConfig := flags.String("client", "", "Client config file to attach")
+	relayConfig := flags.String("relay", "", "Relay config file to attach")
+	showInfo := flags.Bool("info", false, "Show attached config info and exit")
+
+	flags.Parse(os.Args[2:])
+
+	// Handle --info flag
+	if *showInfo {
+		inputPath := *input
+		if inputPath == "" {
+			var err error
+			inputPath, err = os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to get executable path: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
+		daemon, client, relay, err := config.ReadAttachedConfig(inputPath)
+		if err != nil {
+			fmt.Printf("No attached config found in %s\n", inputPath)
+			os.Exit(0)
+		}
+
+		fmt.Printf("Attached configs in %s:\n", inputPath)
+		if len(daemon) > 0 {
+			fmt.Printf("  Daemon config: %d bytes\n", len(daemon))
+		}
+		if len(client) > 0 {
+			fmt.Printf("  Client config: %d bytes\n", len(client))
+		}
+		if len(relay) > 0 {
+			fmt.Printf("  Relay config: %d bytes\n", len(relay))
+		}
+		os.Exit(0)
+	}
+
+	// Validate required flags
+	if *output == "" {
+		fmt.Fprintf(os.Stderr, "Error: --output is required\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s attach-config --output <path> [--daemon <config>] [--client <config>] [--relay <config>]\n", os.Args[0])
+		os.Exit(1)
+	}
+
+	if *daemonConfig == "" && *clientConfig == "" && *relayConfig == "" {
+		fmt.Fprintf(os.Stderr, "Error: at least one config file must be specified (--daemon, --client, or --relay)\n")
+		os.Exit(1)
+	}
+
+	// Determine input path
+	inputPath := *input
+	if inputPath == "" {
+		var err error
+		inputPath, err = os.Executable()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get executable path: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Read config files
+	var daemonData, clientData, relayData []byte
+	var err error
+
+	if *daemonConfig != "" {
+		daemonData, err = os.ReadFile(*daemonConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read daemon config %s: %v\n", *daemonConfig, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Attaching daemon config from %s (%d bytes)\n", *daemonConfig, len(daemonData))
+	}
+
+	if *clientConfig != "" {
+		clientData, err = os.ReadFile(*clientConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read client config %s: %v\n", *clientConfig, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Attaching client config from %s (%d bytes)\n", *clientConfig, len(clientData))
+	}
+
+	if *relayConfig != "" {
+		relayData, err = os.ReadFile(*relayConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read relay config %s: %v\n", *relayConfig, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Attaching relay config from %s (%d bytes)\n", *relayConfig, len(relayData))
+	}
+
+	// Attach configs to binary
+	fmt.Printf("Creating %s with attached configs...\n", *output)
+	err = config.AttachConfigToFile(inputPath, *output, daemonData, clientData, relayData)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to attach configs: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully created %s\n", *output)
+	fmt.Println("\nConfig priority at runtime:")
+	fmt.Println("  1. Explicit --config flag")
+	fmt.Println("  2. Attached config (embedded in binary)")
+	fmt.Println("  3. Default config file locations")
+	fmt.Println("  4. Built-in embedded config")
 }
