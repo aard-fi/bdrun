@@ -1,0 +1,39 @@
+# Embedded daemon configuration (minimal defaults)
+transport:
+  type: socket
+  address: ~/.bdrun/bdrun.sock  # Use ~ for home directory expansion
+
+execution:
+  working_dir: /tmp
+  timeout: 5m
+  allowed_commands:
+    - command: podman
+      regex: false
+      allowed_args: [".*"]
+      allow_pty: true
+  allowed_env_vars:
+    - "PATH"
+    - "HOME"
+    - "USER"
+    - "TERM"
+  pty:
+    enabled: true
+    term: xterm-256color
+    default_rows: 24
+    default_cols: 80
+
+security:
+  socket_permissions:
+    required_mode: 0600
+    warn_only: false
+  auth:
+    type: none
+
+logging:
+  level: info
+  format: text
+  output: stdout
+
+hooks:
+  pre_start: []
+  post_start: []

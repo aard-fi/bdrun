@@ -1,0 +1,20 @@
+# Embedded client configuration (minimal defaults)
+transport:
+  type: socket
+  address: ~/.bdrun/bdrun.sock  # Use ~ for home directory expansion
+
+security:
+  auth:
+    type: none
+
+callback:
+  enabled: false
+
+logging:
+  level: warn
+  format: text
+  output: stderr
+
+hooks:
+  pre_start: []
+  post_start: []
